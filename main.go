@@ -17,29 +17,70 @@ type Task struct {
 	UpdatedAt   time.Time
 }
 
-func write_file(args []string) {
-	var todos []Task
+func showHelp() {
+	fmt.Println("Task Tracker - A simple CLI task management tool")
+	fmt.Println("\nUsage: task-tracker [command] [arguments]")
+	fmt.Println("\nCommands:")
+	fmt.Println("  add [description]           - Add a new task")
+	fmt.Println("  update [id] [description]   - Update a task")
+	fmt.Println("  delete [id]                 - Delete a task")
+	fmt.Println("  mark-in-progress [id]       - Mark task as in progress")
+	fmt.Println("  mark-done [id]              - Mark task as done")
+	fmt.Println("  list                        - List all tasks")
+	fmt.Println("  list done                   - List completed tasks")
+	fmt.Println("  list todo                   - List pending tasks")
+	fmt.Println("  list in-progress            - List tasks in progress")
+	fmt.Println("\nExamples:")
+	fmt.Println("  ./task-tracker add \"Buy groceries\"")
+	fmt.Println("  ./task-tracker update 1 \"Buy groceries and cook dinner\"")
+	fmt.Println("  ./task-tracker mark-done 1")
+	fmt.Println("  ./task-tracker list done")
+}
 
-	// Read whole file
+func loadTasks() []Task {
+	var todos []Task
 	data, err := os.ReadFile("db.json")
 	if err != nil {
-		// If file doesn't exist yet, start with empty list
 		if os.IsNotExist(err) {
-			todos = []Task{}
-		} else {
-			panic(err)
+			return []Task{}
 		}
-	} else {
-		// If file is empty or whitespace, treat as empty JSON array
-		if len(bytes.TrimSpace(data)) == 0 {
-			todos = []Task{}
-		} else if err := json.Unmarshal(data, &todos); err != nil {
-			panic(err)
-		}
+		panic(err)
 	}
 
-	if args[1] == "add" {
-		fmt.Println("Adding task...")
+	if len(bytes.TrimSpace(data)) == 0 {
+		return []Task{}
+	}
+
+	if err := json.Unmarshal(data, &todos); err != nil {
+		panic(err)
+	}
+
+	return todos
+}
+
+func saveTasks(todos []Task) {
+	updated, err := json.MarshalIndent(todos, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	os.WriteFile("db.json", updated, 0644)
+}
+
+func handleCommand(args []string) {
+	if len(args) < 2 {
+		showHelp()
+		return
+	}
+
+	todos := loadTasks()
+	command := args[1]
+
+	switch command {
+	case "add":
+		if len(args) < 3 {
+			fmt.Println("Error: Please provide a task description")
+			return
+		}
 
 		nextID := 1
 		if len(todos) > 0 {
@@ -53,112 +94,178 @@ func write_file(args []string) {
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
-
 		todos = append(todos, task)
 		fmt.Printf("Task added successfully (ID: %d)\n", task.ID)
-	}
 
-	if args[1] == "update" {
-		id, _ := strconv.Atoi(args[2])
+	case "update":
+		if len(args) < 4 {
+			fmt.Println("Error: Please provide task ID and new description")
+			return
+		}
+
+		id, err := strconv.Atoi(args[2])
+		if err != nil {
+			fmt.Println("Error: Invalid task ID")
+			return
+		}
+
+		found := false
 		for i := range todos {
 			if todos[i].ID == id {
 				todos[i].Description = args[3]
+				todos[i].UpdatedAt = time.Now()
+				found = true
+				fmt.Printf("Task %d updated successfully\n", id)
+				break
 			}
 		}
-	}
+		if !found {
+			fmt.Printf("Error: Task with ID %d not found\n", id)
+		}
 
-	if args[1] == "delete" {
+	case "delete":
+		if len(args) < 3 {
+			fmt.Println("Error: Please provide task ID")
+			return
+		}
+
+		id, err := strconv.Atoi(args[2])
+		if err != nil {
+			fmt.Println("Error: Invalid task ID")
+			return
+		}
+
+		found := false
 		for i := range todos {
-			if strconv.Itoa(todos[i].ID) == args[2] {
+			if todos[i].ID == id {
 				todos = append(todos[:i], todos[i+1:]...)
-				fmt.Printf("Task deleted")
+				fmt.Printf("Task %d deleted successfully\n", id)
+				found = true
 				break
 			}
 		}
-	}
+		if !found {
+			fmt.Printf("Error: Task with ID %d not found\n", id)
+		}
 
-	if args[1] == "mark-in-progress" {
+	case "mark-in-progress":
+		if len(args) < 3 {
+			fmt.Println("Error: Please provide task ID")
+			return
+		}
+
+		id, err := strconv.Atoi(args[2])
+		if err != nil {
+			fmt.Println("Error: Invalid task ID")
+			return
+		}
+
+		found := false
 		for i := range todos {
-			if strconv.Itoa(todos[i].ID) == args[2] {
-				todos[i].Status = "In Progress"
+			if todos[i].ID == id {
+				todos[i].Status = "in-progress"
+				todos[i].UpdatedAt = time.Now()
+				fmt.Printf("Task %d marked as in progress\n", id)
+				found = true
 				break
 			}
 		}
-		fmt.Printf("Task In Progress")
-	}
+		if !found {
+			fmt.Printf("Error: Task with ID %d not found\n", id)
+		}
 
-	if args[1] == "mark-done" {
+	case "mark-done":
+		if len(args) < 3 {
+			fmt.Println("Error: Please provide task ID")
+			return
+		}
+
+		id, err := strconv.Atoi(args[2])
+		if err != nil {
+			fmt.Println("Error: Invalid task ID")
+			return
+		}
+
+		found := false
 		for i := range todos {
-			if strconv.Itoa(todos[i].ID) == args[2] {
-				todos[i].Status = "Done"
+			if todos[i].ID == id {
+				todos[i].Status = "done"
+				todos[i].UpdatedAt = time.Now()
+				fmt.Printf("Task %d marked as done\n", id)
+				found = true
 				break
 			}
 		}
-		fmt.Printf("Task Completed")
-	}
+		if !found {
+			fmt.Printf("Error: Task with ID %d not found\n", id)
+		}
 
-	if len(args) == 3 && args[1] == "list" && args[2] == "done" {
-		var doneTasks []Task
-		for i := range todos {
-			if todos[i].Status == "Done" {
-				doneTasks = append(doneTasks, todos[i])
+	case "list":
+		if len(args) == 2 {
+			// List all tasks
+			if len(todos) == 0 {
+				fmt.Println("No tasks found")
+				return
+			}
+			for _, todo := range todos {
+				fmt.Printf("ID: %d, Description: %s, Status: %s\n", todo.ID, todo.Description, todo.Status)
+			}
+		} else if len(args) == 3 {
+			// List by status
+			status := args[2]
+			var filteredTasks []Task
+
+			switch status {
+			case "done":
+				for _, todo := range todos {
+					if todo.Status == "done" {
+						filteredTasks = append(filteredTasks, todo)
+					}
+				}
+			case "todo":
+				for _, todo := range todos {
+					if todo.Status == "todo" {
+						filteredTasks = append(filteredTasks, todo)
+					}
+				}
+			case "in-progress":
+				for _, todo := range todos {
+					if todo.Status == "in-progress" {
+						filteredTasks = append(filteredTasks, todo)
+					}
+				}
+			default:
+				fmt.Printf("Error: Unknown status '%s'\n", status)
+				return
+			}
+
+			if len(filteredTasks) == 0 {
+				fmt.Printf("No tasks with status '%s'\n", status)
+				return
+			}
+
+			for _, todo := range filteredTasks {
+				fmt.Printf("ID: %d, Description: %s\n", todo.ID, todo.Description)
 			}
 		}
-		if len(doneTasks) == 0 {
-			println("No Tasks marked as Done")
-		}
-		for i := range doneTasks {
-			fmt.Printf("ID: %d, Description: %s\n", doneTasks[i].ID, doneTasks[i].Description)
-		}
+
+	default:
+		fmt.Printf("Error: Unknown command '%s'\n", command)
+		fmt.Println("Run './task-tracker --help' for usage information")
+		return
 	}
 
-	if len(args) == 3 && args[1] == "list" && args[2] == "todo" {
-		var doneTasks []Task
-		for i := range todos {
-			if todos[i].Status == "todo" {
-				doneTasks = append(doneTasks, todos[i])
-			}
-		}
-		if len(doneTasks) == 0 {
-			println("No Tasks marked as Todo")
-		}
-
-		for i := range doneTasks {
-			fmt.Printf("ID: %d, Description: %s\n", doneTasks[i].ID, doneTasks[i].Description)
-		}
-	}
-
-	if len(args) == 3 && args[1] == "list" && args[2] == "in-progress" {
-		var doneTasks []Task
-		for i := range todos {
-			if todos[i].Status == "In Progress" {
-				doneTasks = append(doneTasks, todos[i])
-			}
-		}
-		if len(doneTasks) == 0 {
-			println("No Tasks marked as In Progress")
-		}
-		for i := range doneTasks {
-			fmt.Printf("ID: %d, Description: %s\n", doneTasks[i].ID, doneTasks[i].Description)
-		}
-	}
-
-	if len(args) == 2 && args[1] == "list" {
-		for _, todo := range todos {
-			fmt.Printf("ID: %d, Description: %s, Status: %s\n", todo.ID, todo.Description, todo.Status)
-		}
-	}
-
-	updated, _ := json.MarshalIndent(todos, "", " ")
-	os.WriteFile("db.json", updated, 0644)
+	saveTasks(todos)
 }
 
 func main() {
-	println("Please choose from the following options: ")
-	println("1. List Tasks (list) \n2. Add Task (add) \n3. Update Task (update) \n4. Mark task Complete (complete) \n5. Delete Task (delete)")
-
 	args := os.Args
 
-	write_file(args)
+	// Check for help flag
+	if len(args) < 2 || args[1] == "--help" || args[1] == "-h" {
+		showHelp()
+		return
+	}
 
+	handleCommand(args)
 }
